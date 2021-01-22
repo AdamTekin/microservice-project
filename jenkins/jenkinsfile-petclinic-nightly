@@ -14,14 +14,16 @@ pipeline {
         ANSIBLE_HOST_KEY_CHECKING="False"
     }
     stages {
-        stage('Create ECR Repo') {            steps {
+        stage('Create ECR Repo') {
+            steps {
                 echo "Creating ECR Repo for ${APP_NAME} app"
                 sh """
                 aws ecr create-repository \
                     --repository-name ${APP_REPO_NAME} \
-                    --image-scanning-configuratm
+                    --image-scanning-configuration scanOnPush=false \
                     --image-tag-mutability MUTABLE \
-                    --region ${AWS_REGION}                """
+                    --region ${AWS_REGION}
+                """
             }
         }
         stage('Package Application') {
@@ -79,14 +81,11 @@ pipeline {
             steps {
                 echo 'Creating QA Automation Infrastructure for Dev Environment with Cloudfomation'
                 sh "aws cloudformation create-stack --region ${AWS_REGION} --stack-name ${APP_STACK_NAME} --capabilities CAPABILITY_IAM --template-body file://${CFN_TEMPLATE} --parameters ParameterKey=KeyPairName,ParameterValue=${CFN_KEYPAIR}"
-
                 script {
                     while(true) {
                         echo "Docker Grand Master is not UP and running yet. Will try to reach again after 10 seconds..."
                         sleep(10)
-
                         ip = sh(script:"aws ec2 describe-instances --region ${AWS_REGION} --filters Name=tag-value,Values=grand-master Name=tag-value,Values=${APP_STACK_NAME} --query Reservations[*].Instances[*].[PublicIpAddress] --output text", returnStdout:true).trim()
-
                         if (ip.length() >= 7) {
                             echo "Docker Grand Master Public Ip Address Found: $ip"
                             env.GRAND_MASTER_PUBLIC_IP = "$ip"
@@ -107,7 +106,6 @@ pipeline {
                 }
             }
         }
-
         stage('Create Docker Swarm for QA Automation Build') {
             steps {
                 echo "Setup Docker Swarm for QA Automation Build for ${APP_NAME} App"
@@ -123,7 +121,6 @@ pipeline {
                 sh "ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b ./ansible/playbooks/pb_join_docker_swarm_workers.yaml"
             }
         }
-
         stage('Deploy App on Docker Swarm'){
             steps {
                 echo 'Deploying App on Swarm'
@@ -131,12 +128,10 @@ pipeline {
                 sh 'ansible-playbook -i ./ansible/inventory/dev_stack_dynamic_inventory_aws_ec2.yaml -b --extra-vars "workspace=${WORKSPACE} app_name=${APP_NAME} aws_region=${AWS_REGION} ecr_registry=${ECR_REGISTRY}" ./ansible/playbooks/pb_deploy_app_on_docker_swarm.yaml'
             }
         }
-
         stage('Test the Application Deployment'){
             steps {
                 echo "Check if the ${APP_NAME} app is ready or not"
                 script {
-
                     while(true) {
                         try{
                             sh "curl -s ${GRAND_MASTER_PUBLIC_IP}:8080"
@@ -151,7 +146,6 @@ pipeline {
                 }
             }
         }
-
         stage('Run QA Automation Tests'){
             steps {
                 echo "Run the Selenium Functional Test on QA Environment"
@@ -159,7 +153,6 @@ pipeline {
             }
         }
     }
-
     post {
         always {
             echo 'Deleting all local images'
