@@ -1,0 +1,20 @@
+nodes:
+  - address: 34.207.170.19
+    internal_address: 172.31.33.67
+    user: ubuntu
+    role: [controlplane, worker, etcd]
+
+services:
+  etcd:
+    snapshot: true
+    creation: 6h
+    retention: 24h
+
+ssh_key_path: ~/.ssh/adam-rancher.key
+
+# Required for external TLS termination with
+# ingress-nginx v0.22+
+ingress:
+  provider: nginx
+  options:
+    use-forwarded-headers: "true"
